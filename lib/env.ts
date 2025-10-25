@@ -21,7 +21,7 @@ const envSchema = z.object({
       (url) => url.startsWith('postgresql://') || url.startsWith('postgres://') || url.startsWith('prisma://'),
       '数据库连接 URL 必须是 PostgreSQL 或 Prisma 格式'
     )
-    .transform((val) => val.replace(/\r?\n/g, '')) // 移除换行符
+    .transform((val) => val.replace(/\r?\n/g, '').trim()) // 移除换行符和空格
     .optional(),
 
   // NextAuth 配置
@@ -36,10 +36,10 @@ const envSchema = z.object({
     .string()
     .min(32, 'NextAuth Secret 至少需要 32 个字符')
     .regex(
-      /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/,
+      /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?\s]+$/,
       'NextAuth Secret 只能包含字母、数字和特殊字符'
     )
-    .transform((val) => val.replace(/\r?\n/g, '')) // 移除可能包含的换行符
+    .transform((val) => val.replace(/\r?\n/g, '').trim()) // 移除可能包含的换行符和空格
     .optional(),
 
   // Next.js 配置
