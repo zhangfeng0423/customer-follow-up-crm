@@ -142,7 +142,14 @@ export const isTest = env.NODE_ENV === 'test'
  */
 export const getDatabaseConfig = () => {
   try {
-    const url = new URL(env.DATABASE_URL)
+    const databaseUrl = env.DATABASE_URL
+    if (!databaseUrl) {
+      return {
+        error: '数据库 URL 未配置'
+      }
+    }
+
+    const url = new URL(databaseUrl)
     return {
       protocol: url.protocol,
       host: url.host,
