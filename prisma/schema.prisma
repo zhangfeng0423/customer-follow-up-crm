@@ -13,3 +13,136 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+/**
+ * 用户表 - 系统用户信息
+ */
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole @default(SALES)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关系
+  customers     Customer[]
+  followUpRecords FollowUpRecord[]
+  nextStepPlans NextStepPlan[]
+
+  @@map("users")
+}
+
+/**
+ * 客户表 - 客户基本信息
+ */
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  companyInfo String?  @map("company_info")
+  email       String?
+  phone       String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关系
+  userId          String @map("user_id")
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  followUpRecords FollowUpRecord[]
+  nextStepPlans   NextStepPlan[]
+
+  @@map("customers")
+}
+
+/**
+ * 跟进记录表 - 客户跟进记录
+ */
+model FollowUpRecord {
+  id           String           @id @default(cuid())
+  content      String           @db.Text
+  followUpType FollowUpType     @map("follow_up_type")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // 关系
+  customerId String       @map("customer_id")
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId     String       @map("user_id")
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+  nextStepPlans NextStepPlan[]
+
+  @@map("follow_up_records")
+}
+
+/**
+ * 附件表 - 跟进记录附件
+ */
+model Attachment {
+  id        String            @id @default(cuid())
+  fileName  String            @map("file_name")
+  fileUrl   String            @map("file_url")
+  fileType  String            @map("file_type")
+  fileSize  Int?              @map("file_size")
+  createdAt DateTime          @default(now())
+
+  // 关系
+  followUpRecordId String          @map("follow_up_record_id")
+  followUpRecord   FollowUpRecord  @relation(fields: [followUpRecordId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+/**
+ * 下一步计划表 - 下一步行动计划
+ */
+model NextStepPlan {
+  id        String        @id @default(cuid())
+  dueDate   DateTime      @map("due_date")
+  notes     String?       @db.Text
+  status    PlanStatus    @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // 关系
+  followUpRecordId String         @map("follow_up_record_id")
+  followUpRecord   FollowUpRecord @relation(fields: [followUpRecordId], references: [id], onDelete: Cascade)
+  customerId        String         @map("customer_id")
+  customer          Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId            String         @map("user_id")
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("next_step_plans")
+}
+
+/**
+ * 枚举类型定义
+ */
+
+/**
+ * 用户角色枚举
+ */
+enum UserRole {
+  SALES
+  MANAGER
+  ADMIN
+}
+
+/**
+ * 跟进类型枚举 - 根据PRD定义的固定选项
+ */
+enum FollowUpType {
+  PHONE_CALL    @map("PHONE_CALL")    // 电话沟通
+  MEETING       @map("MEETING")       // 线上会议
+  VISIT         @map("VISIT")         // 上门拜访
+  BUSINESS_DINNER @map("BUSINESS_DINNER") // 商务宴请
+}
+
+/**
+ * 计划状态枚举
+ */
+enum PlanStatus {
+  PENDING @map("PENDING") // 待办
+  DONE    @map("DONE")    // 已完成
+}

@@ -1,0 +1,37 @@
+/**
+ * Textarea组件
+ * 可定制的文本输入区域组件
+ */
+
+import * as React from 'react'
+
+import { cn } from '@/lib/utils'
+
+/**
+ * Textarea组件Props接口
+ */
+export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
+
+/**
+ * Textarea组件
+ *
+ * @param props Textarea组件属性
+ * @returns {JSX.Element} 文本输入区域组件
+ */
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <textarea
+        className={cn(
+          'flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Textarea.displayName = 'Textarea'
+
+export { Textarea }
