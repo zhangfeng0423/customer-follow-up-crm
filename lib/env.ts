@@ -18,9 +18,10 @@ const envSchema = z.object({
     .min(1, '数据库连接 URL 不能为空')
     .url('数据库连接 URL 格式无效')
     .refine(
-      (url) => url.startsWith('postgresql://') || url.startsWith('postgres://'),
-      '数据库连接 URL 必须是 PostgreSQL 格式'
+      (url) => url.startsWith('postgresql://') || url.startsWith('postgres://') || url.startsWith('prisma://'),
+      '数据库连接 URL 必须是 PostgreSQL 或 Prisma 格式'
     )
+    .transform((val) => val.replace(/\r?\n/g, '')) // 移除换行符
     .optional(),
 
   // NextAuth 配置
@@ -28,6 +29,7 @@ const envSchema = z.object({
     .string()
     .min(1, 'NextAuth URL 不能为空')
     .url('NextAuth URL 格式无效')
+    .transform((val) => val.replace(/\r?\n/g, '')) // 移除换行符
     .optional(),
 
   NEXTAUTH_SECRET: z
