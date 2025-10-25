@@ -48,8 +48,8 @@ model Customer {
   updatedAt   DateTime @updatedAt
 
   // 关系
-  userId          String @map("user_id")
-  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String? @map("user_id")
+  user            User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   followUpRecords FollowUpRecord[]
   nextStepPlans   NextStepPlan[]
 

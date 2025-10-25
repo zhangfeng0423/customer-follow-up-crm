@@ -120,11 +120,11 @@ export interface CustomerDetail {
   address?: string
   createdAt: string
   updatedAt: string
-  user: {
+  user?: {
     id: string
     name: string
     email: string
-  }
+  } | null
   _count: {
     followUpRecords: number
     nextStepPlans: number

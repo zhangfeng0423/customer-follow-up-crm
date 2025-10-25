@@ -27,7 +27,7 @@ async function main() {
     },
   })
 
-  console.log('创建用户:', user.name)
+  console.log('创建默认用户:', user.name)
 
   // 创建示例客户
   const customers = [
@@ -37,7 +37,7 @@ async function main() {
       email: 'zhang.yuan@yuanyang-logistics.com',
       phone: '+86-21-88886666',
       address: '上海市浦东新区世纪大道100号远洋大厦',
-      userId: user.id,
+      // userId: user.id, // 注释掉这行，使 userId 为 null（公共客户）
     },
     {
       name: '李经理',
@@ -45,7 +45,7 @@ async function main() {
       email: 'li.manager@techinnov.com.cn',
       phone: '+86-010-88887777',
       address: '北京市海淀区中关村大街1号科技大厦',
-      userId: user.id,
+      // userId: user.id, // 注释掉这行，使 userId 为 null（公共客户）
     },
     {
       name: '王董',
@@ -53,7 +53,7 @@ async function main() {
       email: 'wang.chairman@smartmfg.com',
       phone: '+86-0755-88885555',
       address: '深圳市南山区科技园路88号智能制造中心',
-      userId: user.id,
+      // userId: user.id, // 注释掉这行，使 userId 为 null（公共客户）
     },
     {
       name: '赵总监',
@@ -61,7 +61,7 @@ async function main() {
       email: 'zhao.director@finance-group.com',
       phone: '+86-021-88884444',
       address: '上海市静安区南京西路1266号恒隆广场',
-      userId: user.id,
+      // userId: user.id, // 注释掉这行，使 userId 为 null（公共客户）
     },
     {
       name: '陈总',
@@ -69,7 +69,7 @@ async function main() {
       email: 'chen.ceo@newenergy-tech.com',
       phone: '+86-0755-88883333',
       address: '深圳市南山区高新技术产业园A座',
-      userId: user.id,
+      // userId: user.id, // 注释掉这行，使 userId 为 null（公共客户）
     },
   ]
 

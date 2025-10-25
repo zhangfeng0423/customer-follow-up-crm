@@ -105,10 +105,11 @@ function formatFollowUpDate(dateString: string): { text: string; color: string }
 }
 
 /**
- * 获取所有客户数据
+ * 获取所有客户数据（暂时显示所有客户，包括公共客户和私有客户）
  */
 async function getCustomers(): Promise<Customer[]> {
   try {
+    // 暂时显示所有客户（包括 userId 为 null 的公共客户和有 userId 的私有客户）
     const customers = await prisma.customer.findMany({
       include: {
         user: {
