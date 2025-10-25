@@ -92,12 +92,17 @@ export function validateEnv(): z.infer<typeof envSchema> {
         console.error(`  - ${err.path.join('.')}: ${err.message}`)
       })
 
-      // 在构建环境中不要抛出错误，只警告
-      if (process.env.NODE_ENV === 'production' && error.issues.some(issue =>
-        ['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET'].includes(issue.path[0] as string)
-      )) {
-        console.warn('⚠️  部署环境变量配置不完整，请稍后在Vercel Dashboard中配置')
-        return envSchema.parse({ ...process.env, NODE_ENV: 'production' })
+      // 在生产环境中，对于验证失败返回默认值而不是抛出错误
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('⚠️  部署环境变量配置不完整，应用将以有限功能运行')
+        return {
+          NODE_ENV: 'production',
+          DATABASE_URL: undefined,
+          NEXTAUTH_URL: undefined,
+          NEXTAUTH_SECRET: undefined,
+          PORT: 3000,
+          CUSTOM_KEY: undefined
+        }
       }
 
       throw new Error('环境变量验证失败，请检查配置')
