@@ -44,27 +44,18 @@ export async function POST(request: NextRequest) {
 
     console.log('开始初始化生产环境数据库...')
 
-    // 创建管理员用户
-    const adminUser = await prisma.user.create({
-      data: {
-        name: '系统管理员',
-        email: 'admin@company.com',
-        role: UserRole.ADMIN,
-      },
-    })
-
-    console.log('✅ 创建管理员用户:', adminUser.name)
-
-    // 创建示例销售用户
-    const salesUser = await prisma.user.create({
-      data: {
+    // 创建默认销售用户
+    const salesUser = await prisma.user.upsert({
+      where: { email: 'wanglei@company.com' },
+      update: {},
+      create: {
         name: '王磊',
         email: 'wanglei@company.com',
         role: UserRole.SALES,
       },
     })
 
-    console.log('✅ 创建销售用户:', salesUser.name)
+    console.log('✅ 创建默认用户:', salesUser.name)
 
     // 创建示例客户
     const customers = [
@@ -178,12 +169,7 @@ export async function POST(request: NextRequest) {
         customers: customers.length,
         followUpRecords: customers.length * 3,
         nextStepPlans: customers.length,
-        adminAccount: {
-          email: 'admin@company.com',
-          name: '系统管理员',
-          role: 'ADMIN'
-        },
-        salesAccount: {
+        defaultAccount: {
           email: 'wanglei@company.com',
           name: '王磊',
           role: 'SALES'

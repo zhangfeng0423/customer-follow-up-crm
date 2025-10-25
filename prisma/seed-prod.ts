@@ -18,12 +18,12 @@ async function main() {
 
   // 创建示例用户
   const user = await prisma.user.upsert({
-    where: { email: 'admin@company.com' },
+    where: { email: 'wanglei@company.com' },
     update: {},
     create: {
-      name: '系统管理员',
-      email: 'admin@company.com',
-      role: UserRole.ADMIN,
+      name: '王磊',
+      email: 'wanglei@company.com',
+      role: UserRole.SALES,
     },
   })
 
@@ -141,7 +141,7 @@ async function main() {
   console.log('✅ 生产环境示例数据创建完成!')
   console.log('')
   console.log('📋 创建的账户信息:')
-  console.log('管理员账号: admin@company.com')
+  console.log('默认账号: wanglei@company.com (王磊)')
   console.log('客户数量:', customers.length)
   console.log('每个客户都有3条跟进记录和1个下一步计划')
 }
