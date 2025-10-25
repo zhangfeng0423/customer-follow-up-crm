@@ -12,7 +12,7 @@ import { z } from 'zod'
  * 定义所有必需和可选的环境变量及其格式
  */
 const envSchema = z.object({
-  // 数据库配置
+  // 数据库配置 - 在构建阶段可能为空
   DATABASE_URL: z
     .string()
     .min(1, '数据库连接 URL 不能为空')
@@ -20,13 +20,15 @@ const envSchema = z.object({
     .refine(
       (url) => url.startsWith('postgresql://'),
       '数据库连接 URL 必须是 PostgreSQL 格式'
-    ),
+    )
+    .optional(),
 
   // NextAuth 配置
   NEXTAUTH_URL: z
     .string()
     .min(1, 'NextAuth URL 不能为空')
-    .url('NextAuth URL 格式无效'),
+    .url('NextAuth URL 格式无效')
+    .optional(),
 
   NEXTAUTH_SECRET: z
     .string()
@@ -34,7 +36,8 @@ const envSchema = z.object({
     .regex(
       /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/,
       'NextAuth Secret 只能包含字母、数字和特殊字符'
-    ),
+    )
+    .optional(),
 
   // Next.js 配置
   NODE_ENV: z
@@ -65,6 +68,21 @@ const envSchema = z.object({
 export function validateEnv(): z.infer<typeof envSchema> {
   try {
     const env = envSchema.parse(process.env)
+
+    // 在生产环境中，检查关键变量是否已设置
+    const isProduction = env.NODE_ENV === 'production'
+    if (isProduction) {
+      const missingVars = []
+      if (!env.DATABASE_URL) missingVars.push('DATABASE_URL')
+      if (!env.NEXTAUTH_URL) missingVars.push('NEXTAUTH_URL')
+      if (!env.NEXTAUTH_SECRET) missingVars.push('NEXTAUTH_SECRET')
+
+      if (missingVars.length > 0) {
+        console.warn(`⚠️  生产环境缺少以下环境变量: ${missingVars.join(', ')}`)
+        console.warn('请在Vercel Dashboard中配置这些变量')
+      }
+    }
+
     console.log('✅ 环境变量验证通过')
     return env
   } catch (error) {
@@ -73,6 +91,15 @@ export function validateEnv(): z.infer<typeof envSchema> {
       error.issues.forEach((err) => {
         console.error(`  - ${err.path.join('.')}: ${err.message}`)
       })
+
+      // 在构建环境中不要抛出错误，只警告
+      if (process.env.NODE_ENV === 'production' && error.issues.some(issue =>
+        ['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET'].includes(issue.path[0] as string)
+      )) {
+        console.warn('⚠️  部署环境变量配置不完整，请稍后在Vercel Dashboard中配置')
+        return envSchema.parse({ ...process.env, NODE_ENV: 'production' })
+      }
+
       throw new Error('环境变量验证失败，请检查配置')
     }
     console.error('❌ 环境变量验证过程中发生未知错误:', error)

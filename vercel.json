@@ -3,17 +3,10 @@
   "outputDirectory": ".next",
   "installCommand": "pnpm install",
   "framework": "nextjs",
-  "regions": ["hkg1", "sin1"],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "NEXTAUTH_URL": "@nextauth_url",
-    "DATABASE_URL": "@database_url",
-    "NEXTAUTH_SECRET": "@nextauth_secret",
-    "NODE_ENV": "production"
   },
   "build": {
     "env": {
