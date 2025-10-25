@@ -20,6 +20,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "postinstall": "prisma generate",
     "docker:build": "docker build -t crm-app .",
     "docker:run": "docker run -p 3000:3000 crm-app",
     "docker:compose:up": "docker-compose up -d",
