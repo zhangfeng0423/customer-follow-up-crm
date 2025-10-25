@@ -18,7 +18,7 @@ const envSchema = z.object({
     .min(1, '数据库连接 URL 不能为空')
     .url('数据库连接 URL 格式无效')
     .refine(
-      (url) => url.startsWith('postgresql://'),
+      (url) => url.startsWith('postgresql://') || url.startsWith('postgres://'),
       '数据库连接 URL 必须是 PostgreSQL 格式'
     )
     .optional(),
@@ -37,6 +37,7 @@ const envSchema = z.object({
       /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/,
       'NextAuth Secret 只能包含字母、数字和特殊字符'
     )
+    .transform((val) => val.replace(/\r?\n/g, '')) // 移除可能包含的换行符
     .optional(),
 
   // Next.js 配置
