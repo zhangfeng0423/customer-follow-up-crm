@@ -204,28 +204,40 @@ export async function POST(
 
       // 创建附件记录（如果有）
       if (validatedData.attachments && validatedData.attachments.length > 0) {
-        await tx.attachment.createMany({
-          data: validatedData.attachments.map(attachment => ({
-            fileName: attachment.fileName,
-            fileUrl: attachment.fileUrl,
-            fileType: attachment.fileType,
-            fileSize: attachment.fileSize,
-            followUpRecordId: followUpRecord.id,
-          })),
-        })
+        try {
+          await tx.attachment.createMany({
+            data: validatedData.attachments.map(attachment => ({
+              fileName: attachment.fileName,
+              fileUrl: attachment.fileUrl,
+              fileType: attachment.fileType,
+              fileSize: attachment.fileSize,
+              followUpRecordId: followUpRecord.id,
+            })),
+          })
+          console.log('✅ 创建附件记录成功:', validatedData.attachments.length, '个附件')
+        } catch (attachmentError) {
+          console.error('❌ 创建附件记录失败:', attachmentError)
+          throw new Error(`附件记录创建失败: ${attachmentError instanceof Error ? attachmentError.message : '未知错误'}`)
+        }
       }
 
       // 创建下一步计划（如果有）
       if (validatedData.nextStep) {
-        await tx.nextStepPlan.create({
-          data: {
-            dueDate: new Date(validatedData.nextStep.dueDate),
-            notes: validatedData.nextStep.notes,
-            customerId,
-            userId: currentUserId,
-            followUpRecordId: followUpRecord.id,
-          },
-        })
+        try {
+          await tx.nextStepPlan.create({
+            data: {
+              dueDate: new Date(validatedData.nextStep.dueDate),
+              notes: validatedData.nextStep.notes,
+              customerId,
+              userId: currentUserId,
+              followUpRecordId: followUpRecord.id,
+            },
+          })
+          console.log('✅ 创建下一步计划成功:', validatedData.nextStep.dueDate)
+        } catch (nextStepError) {
+          console.error('❌ 创建下一步计划失败:', nextStepError)
+          throw new Error(`下一步计划创建失败: ${nextStepError instanceof Error ? nextStepError.message : '未知错误'}`)
+        }
       }
 
       // 重新查询完整的记录信息
@@ -280,7 +292,7 @@ export async function POST(
       customerId: result.customerId,
       userId: result.userId,
       user: result.user,
-      attachments: result.attachments.map((attachment) => ({
+      attachments: (result.attachments || []).map((attachment) => ({
         id: attachment.id,
         fileName: attachment.fileName,
         fileUrl: attachment.fileUrl,
@@ -288,7 +300,7 @@ export async function POST(
         fileSize: attachment.fileSize || undefined,
         createdAt: attachment.createdAt.toISOString(),
       })),
-      nextStepPlans: result.nextStepPlans.map((plan) => ({
+      nextStepPlans: (result.nextStepPlans || []).map((plan) => ({
         id: plan.id,
         dueDate: plan.dueDate.toISOString(),
         notes: plan.notes || undefined,
