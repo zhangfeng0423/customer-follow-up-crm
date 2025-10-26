@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { useState, useCallback, useRef } from 'react'
-import { Plus, Minus, Send, Calendar as CalendarIcon } from 'lucide-react'
+import { Plus, Minus, Send, Calendar as CalendarIcon, Paperclip, X, FileImage, FileText } from 'lucide-react'
 import { useForm, useController } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -26,6 +26,16 @@ import {
 } from '@/lib/types/followup'
 import { FollowUpType } from '@/app/generated/prisma'
 
+/**
+ * 文件信息接口
+ */
+interface UploadedFile {
+  id: string
+  fileName: string
+  fileUrl: string
+  fileType: string
+  fileSize: number
+}
 
 /**
  * 表单验证Schema
@@ -83,10 +93,13 @@ export function InlineFollowUpInput({
   autoFocus = false,
 }: InlineFollowUpInputProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isUploading, setIsUploading] = useState(false)
   const { toast } = useToast()
 
   const formRef = useRef<HTMLFormElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     control,
@@ -158,6 +171,91 @@ export function InlineFollowUpInput({
   }, [])
 
   /**
+   * 处理文件选择
+   */
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setIsUploading(true)
+
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || '文件上传失败')
+        }
+
+        const result = await response.json()
+        return result.data as UploadedFile
+      })
+
+      const uploadedFilesData = await Promise.all(uploadPromises)
+      setUploadedFiles(prev => [...prev, ...uploadedFilesData])
+
+      toast({
+        title: '上传成功',
+        description: `成功上传 ${uploadedFilesData.length} 个文件`,
+      })
+    } catch (error) {
+      console.error('文件上传失败:', error)
+      toast({
+        title: '上传失败',
+        description: error instanceof Error ? error.message : '文件上传失败，请稍后重试',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsUploading(false)
+      // 清空文件输入，允许重复选择相同文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }, [toast, uploadedFiles])
+
+  /**
+   * 移除已上传的文件
+   */
+  const handleRemoveFile = useCallback((fileId: string) => {
+    setUploadedFiles(prev => prev.filter(file => file.id !== fileId))
+  }, [])
+
+  /**
+   * 获取文件图标
+   */
+  const getFileIcon = (fileType: string) => {
+    switch (fileType) {
+      case 'image':
+        return <FileImage className="h-4 w-4" />
+      case 'pdf':
+      case 'document':
+      case 'spreadsheet':
+        return <FileText className="h-4 w-4" />
+      default:
+        return <Paperclip className="h-4 w-4" />
+    }
+  }
+
+  /**
+   * 格式化文件大小
+   */
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  /**
    * 提交表单
    */
   const handleFormSubmit = useCallback(async (data: FollowUpFormData) => {
@@ -171,6 +269,12 @@ export function InlineFollowUpInput({
         customerId,
         content: data.content,
         followUpType: data.followUpType,
+        attachments: uploadedFiles.length > 0 ? uploadedFiles.map(file => ({
+          fileName: file.fileName,
+          fileUrl: file.fileUrl,
+          fileType: file.fileType,
+          fileSize: file.fileSize,
+        })) : undefined,
         nextStep: data.hasNextStep ? {
           dueDate: data.nextStep?.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           notes: data.nextStep?.notes || '',
@@ -180,8 +284,9 @@ export function InlineFollowUpInput({
       // 提交跟进记录
       await onSubmit(requestData)
 
-      // 重置表单
+      // 重置表单和文件
       reset()
+      setUploadedFiles([])
 
       // 显示成功提示
       toast({
@@ -306,14 +411,80 @@ export function InlineFollowUpInput({
               </div>
             )}
 
+            {/* 文件上传区域 */}
+            {uploadedFiles.length > 0 && (
+              <div className="mb-4">
+                <div className="flex flex-wrap gap-2">
+                  {uploadedFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2 text-sm"
+                    >
+                      <div className="text-muted-foreground">
+                        {getFileIcon(file.fileType)}
+                      </div>
+                      <span className="truncate max-w-[120px]" title={file.fileName}>
+                        {file.fileName}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        ({formatFileSize(file.fileSize)})
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveFile(file.id)}
+                        disabled={disabled || isSubmitting}
+                        className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 按钮区域 */}
             <div className="flex items-center justify-between">
-              {/* 左侧：录音按钮和下一步按钮 */}
+              {/* 左侧：录音按钮、附件按钮和下一步按钮 */}
               <div className="flex items-center space-x-2">
                 <VoiceInput
                   onTranscript={handleVoiceTranscript}
                   disabled={disabled || isSubmitting}
                 />
+
+                {/* 文件上传按钮 */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  onChange={handleFileSelect}
+                  disabled={disabled || isSubmitting || isUploading}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={disabled || isSubmitting || isUploading}
+                  className="h-8 px-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent mr-1" />
+                      <span className="text-xs">上传中</span>
+                    </>
+                  ) : (
+                    <>
+                      <Paperclip className="h-3 w-3 mr-1" />
+                      <span className="text-xs">附件</span>
+                    </>
+                  )}
+                </Button>
+
                 <Button
                   type="button"
                   variant="ghost"
