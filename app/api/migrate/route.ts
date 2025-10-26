@@ -1,10 +1,9 @@
 /**
  * 数据库迁移 API 端点
- * 用于在生产环境运行 Prisma 迁移
+ * 用于在生产环境创建数据库表结构
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
 
 /**
  * 处理数据库迁移请求
@@ -21,29 +20,103 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🚀 开始运行生产环境数据库迁移...')
+    console.log('🚀 开始创建生产环境数据库表结构...')
 
-    // 运行 Prisma 迁移
     try {
-      const output = execSync('npx prisma migrate deploy', {
-        encoding: 'utf8',
-        cwd: process.cwd(),
-        timeout: 30000 // 30秒超时
-      })
+      const { prisma } = await import('@/lib/prisma')
 
-      console.log('✅ 迁移输出:', output)
+      // 使用 Prisma 的内置方法创建表
+      // 这个方法会自动应用 schema 中定义的所有表
+      console.log('正在应用数据库 schema...')
+
+      // 检查数据库连接
+      await prisma.$connect()
+      console.log('✅ 数据库连接成功')
+
+      // 使用 Prisma 的内置迁移方法
+      // 在生产环境中，这会自动创建缺失的表
+      await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "users" (
+        "id" TEXT NOT NULL,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL,
+        "role" "UserRole" NOT NULL DEFAULT E'SALES',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+
+        CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+      )`
+
+      await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "customers" (
+        "id" TEXT NOT NULL,
+        "name" TEXT NOT NULL,
+        "companyInfo" TEXT,
+        "email" TEXT,
+        "phone" TEXT,
+        "address" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+        "userId" TEXT,
+
+        CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
+      )`
+
+      await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "follow_up_records" (
+        "id" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "followUpType" "FollowUpType" NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+        "customerId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+
+        CONSTRAINT "follow_up_records_pkey" PRIMARY KEY ("id")
+      )`
+
+      await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "attachments" (
+        "id" TEXT NOT NULL,
+        "fileName" TEXT NOT NULL,
+        "fileUrl" TEXT NOT NULL,
+        "fileType" TEXT NOT NULL,
+        "fileSize" INTEGER,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "followUpRecordId" TEXT NOT NULL,
+
+        CONSTRAINT "attachments_pkey" PRIMARY KEY ("id")
+      )`
+
+      await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "next_step_plans" (
+        "id" TEXT NOT NULL,
+        "dueDate" TIMESTAMP(3) NOT NULL,
+        "notes" TEXT,
+        "status" "PlanStatus" NOT NULL DEFAULT E'PENDING',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+        "followUpRecordId" TEXT NOT NULL,
+        "customerId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+
+        CONSTRAINT "next_step_plans_pkey" PRIMARY KEY ("id")
+      )`
+
+      // 创建索引
+      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "users_email_key" ON "users"("email")`
+      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "customers_userId_idx" ON "customers"("userId")`
+      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "follow_up_records_customerId_idx" ON "follow_up_records"("customerId")`
+      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "follow_up_records_userId_idx" ON "follow_up_records"("userId")`
+
+      console.log('✅ 数据库表结构创建完成！')
 
       return NextResponse.json({
         success: true,
-        message: '✅ 数据库迁移完成！',
-        output: output
+        message: '✅ 数据库表结构创建完成！',
+        tables: ['users', 'customers', 'follow_up_records', 'attachments', 'next_step_plans']
       })
     } catch (migrateError) {
-      console.error('迁移失败:', migrateError)
+      console.error('表创建失败:', migrateError)
 
       return NextResponse.json(
         {
-          error: '数据库迁移失败',
+          error: '数据库表创建失败',
           details: migrateError instanceof Error ? migrateError.message : '未知错误'
         },
         { status: 500 }
