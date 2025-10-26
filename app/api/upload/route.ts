@@ -5,8 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { put } from '@vercel/blob'
 import { FileUploadResponse, ApiResponse } from '@/lib/types/followup'
 
 /**
@@ -67,6 +66,19 @@ const generateUniqueFileName = (originalName: string): string => {
 }
 
 /**
+ * 检查Vercel Blob环境变量是否配置
+ */
+const checkBlobEnvironment = (): { isValid: boolean; error?: string } => {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return {
+      isValid: false,
+      error: 'BLOB_READ_WRITE_TOKEN 环境变量未配置。请在 Vercel 项目的 Storage 标签页连接 Blob 存储并等待环境变量自动添加。'
+    }
+  }
+  return { isValid: true }
+}
+
+/**
  * 获取文件类型分类
  *
  * @param mimeType MIME类型
@@ -82,7 +94,7 @@ const getFileTypeCategory = (mimeType: string): string => {
 }
 
 /**
- * POST - 上传文件
+ * POST - 上传文件到 Vercel Blob
  *
  * @param request Next.js请求对象
  * @returns Promise<NextResponse> 上传结果
@@ -91,6 +103,15 @@ export async function POST(
   request: NextRequest
 ): Promise<NextResponse<ApiResponse<FileUploadResponse['file']>>> {
   try {
+    // 检查 Blob 环境配置
+    const blobCheck = checkBlobEnvironment()
+    if (!blobCheck.isValid) {
+      return NextResponse.json(
+        { success: false, error: blobCheck.error },
+        { status: 500 }
+      )
+    }
+
     // 解析表单数据
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -115,34 +136,29 @@ export async function POST(
       )
     }
 
-    // 确保上传目录存在
-    const uploadDir = join(process.cwd(), 'public', 'uploads')
-    try {
-      await mkdir(uploadDir, { recursive: true })
-    } catch {
-      // 目录已存在，忽略错误
-    }
-
-    // 生成唯一文件名和路径
+    // 生成唯一文件名
     const uniqueFileName = generateUniqueFileName(file.name)
-    const filePath = join(uploadDir, uniqueFileName)
 
-    // 将文件写入磁盘
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
-
-    // 构建文件URL
-    const fileUrl = `/uploads/${uniqueFileName}`
+    // 上传到 Vercel Blob
+    const blob = await put(uniqueFileName, file, {
+      access: 'public',
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    })
 
     // 构建响应数据
     const fileData = {
       id: `file_${Date.now()}_${Math.random().toString(36).substring(2)}`,
       fileName: file.name,
-      fileUrl,
+      fileUrl: blob.url,
       fileType: getFileTypeCategory(file.type),
       fileSize: file.size,
     }
+
+    console.log('✅ 文件上传到 Vercel Blob 成功:', {
+      fileName: file.name,
+      url: blob.url,
+      size: file.size
+    })
 
     return NextResponse.json({
       success: true,
@@ -152,6 +168,18 @@ export async function POST(
 
   } catch (error: unknown) {
     console.error('文件上传失败:', error)
+
+    // 检查是否是 Blob 配置错误
+    if (error instanceof Error && error.message.includes('BLOB_READ_WRITE_TOKEN')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Vercel Blob 配置错误：请确保已在 Vercel 项目的 Storage 标签页连接了 Blob 存储',
+        },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       {
         success: false,
