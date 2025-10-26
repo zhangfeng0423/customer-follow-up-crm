@@ -43,6 +43,33 @@ export interface TimelineViewProps {
 }
 
 /**
+ * 附件操作处理函数
+ */
+const handleAttachmentView = (attachment: FollowUpRecordResponse['attachments'][0]) => {
+  if (attachment.fileType === 'image') {
+    // 图片在新窗口打开
+    window.open(attachment.fileUrl, '_blank')
+  } else {
+    // 非图片文件尝试直接下载
+    handleAttachmentDownload(attachment)
+  }
+}
+
+/**
+ * 附件下载处理函数
+ */
+const handleAttachmentDownload = (attachment: FollowUpRecordResponse['attachments'][0]) => {
+  // 创建一个隐藏的a标签来触发下载
+  const link = document.createElement('a')
+  link.href = attachment.fileUrl
+  link.download = attachment.fileName
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+/**
  * 获取跟进类型图标
  */
 const getFollowUpTypeIcon = (type: FollowUpType) => {
@@ -206,10 +233,22 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ record, isLast }) => {
                         </p>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleAttachmentView(attachment)}
+                          title={attachment.fileType === 'image' ? '查看图片' : '查看文件'}
+                        >
                           <Eye className="h-3 w-3" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleAttachmentDownload(attachment)}
+                          title="下载文件"
+                        >
                           <Download className="h-3 w-3" />
                         </Button>
                       </div>

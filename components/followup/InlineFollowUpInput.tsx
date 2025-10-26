@@ -219,7 +219,7 @@ export function InlineFollowUpInput({
         fileInputRef.current.value = ''
       }
     }
-  }, [toast, uploadedFiles])
+  }, [toast])
 
   /**
    * 移除已上传的文件
