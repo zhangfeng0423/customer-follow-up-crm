@@ -1,6 +1,7 @@
 /**
  * 数据库初始化 API 端点
  * 用于在生产环境创建初始数据
+ * 包含三重安全保护：密钥验证、幂等性检查、时间窗口限制
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -16,33 +17,62 @@ const prisma = new PrismaClient({
 })
 
 /**
- * 处理数据库初始化请求
- *
- * @param {NextRequest} request - HTTP 请求对象
- * @returns {Promise<NextResponse>} HTTP 响应
+ * 安全检查1：验证初始化密钥
  */
-export async function POST(request: NextRequest) {
+async function validateSecretKey(request: NextRequest): Promise<boolean> {
+  const { searchParams } = new URL(request.url)
+  let secret = searchParams.get('secret')
+
+  // 如果URL参数中没有密钥，尝试从请求体中获取（支持POST方式）
+  if (!secret && request.headers.get('content-type')?.includes('application/json')) {
+    try {
+      const body = await request.json()
+      secret = body?.secret
+    } catch {
+      // 忽略JSON解析错误
+    }
+  }
+
+  const expectedSecret = process.env.SEED_SECRET || 'init-database-2024'
+  return secret === expectedSecret
+}
+
+/**
+ * 安全检查2：幂等性检查 - 验证数据库是否已初始化
+ */
+async function isDatabaseInitialized(): Promise<boolean> {
   try {
-    // 验证请求是否来自管理员（简单的密钥验证）
-    const { initKey } = await request.json()
+    const existingUser = await prisma.user.findFirst({
+      where: { email: 'wanglei@company.com' },
+    })
+    return !!existingUser
+  } catch (error) {
+    console.error('检查数据库初始化状态失败:', error)
+    return false
+  }
+}
 
-    if (initKey !== process.env.INIT_SECRET_KEY && initKey !== 'init-database-2024') {
-      return NextResponse.json(
-        { error: '未授权的初始化请求' },
-        { status: 401 }
-      )
-    }
+/**
+ * 安全检查3：时间窗口限制
+ */
+function isValidTimeWindow(): boolean {
+  // 检查是否在部署后的合理时间窗口内（1小时）
+  const deployTime = process.env.VERCEL_DEPLOYMENT_TIME
+    ? new Date(process.env.VERCEL_DEPLOYMENT_TIME).getTime()
+    : Date.now() // 如果没有部署时间信息，使用当前时间
 
-    // 检查是否已经有数据
-    const existingUsers = await prisma.user.count()
-    if (existingUsers > 0) {
-      return NextResponse.json({
-        message: '数据库已经包含数据，跳过初始化',
-        userCount: existingUsers,
-      })
-    }
+  const currentTime = Date.now()
+  const oneHour = 60 * 60 * 1000 // 1小时的毫秒数
 
-    console.log('开始初始化生产环境数据库...')
+  return (currentTime - deployTime) <= oneHour
+}
+
+/**
+ * 执行数据库初始化的核心逻辑
+ */
+async function performInitialization(): Promise<NextResponse> {
+  try {
+    console.log('🚀 开始安全初始化生产环境数据库...')
 
     // 创建默认销售用户
     const salesUser = await prisma.user.upsert({
@@ -159,13 +189,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await prisma.$disconnect()
-
     const result = {
       success: true,
       message: '✅ 生产环境数据库初始化完成！',
       data: {
-        users: 2,
+        users: 1,
         customers: customers.length,
         followUpRecords: customers.length * 3,
         nextStepPlans: customers.length,
@@ -183,8 +211,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ 数据库初始化失败:', error)
 
-    await prisma.$disconnect()
-
     return NextResponse.json(
       {
         error: '数据库初始化失败',
@@ -196,33 +222,108 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 获取数据库状态
+ * 处理数据库初始化请求（POST方式）
  */
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const userCount = await prisma.user.count()
-    const customerCount = await prisma.customer.count()
-    const followUpCount = await prisma.followUpRecord.count()
-    const planCount = await prisma.nextStepPlan.count()
+    // 安全检查1：验证密钥
+    if (!(await validateSecretKey(request))) {
+      return NextResponse.json(
+        { error: '未授权的初始化请求：缺少有效密钥' },
+        { status: 401 }
+      )
+    }
 
-    await prisma.$disconnect()
+    // 安全检查2：幂等性检查
+    if (await isDatabaseInitialized()) {
+      return NextResponse.json({
+        message: '数据库已经初始化，跳过重复执行',
+        status: 'already_initialized'
+      })
+    }
 
-    return NextResponse.json({
-      status: 'success',
-      data: {
-        users: userCount,
-        customers: customerCount,
-        followUpRecords: followUpCount,
-        nextStepPlans: planCount,
-        isEmpty: userCount === 0 && customerCount === 0,
-      }
-    })
+    // 安全检查3：时间窗口限制
+    if (!isValidTimeWindow()) {
+      return NextResponse.json(
+        { error: '初始化请求已超时，请在部署后1小时内执行' },
+        { status: 403 }
+      )
+    }
+
+    // 执行初始化逻辑
+    return await performInitialization()
   } catch (error) {
-    console.error('获取数据库状态失败:', error)
-    await prisma.$disconnect()
-
+    console.error('❌ POST初始化请求失败:', error)
     return NextResponse.json(
-      { error: '获取数据库状态失败' },
+      {
+        error: '数据库初始化失败',
+        details: error instanceof Error ? error.message : '未知错误'
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * 获取数据库状态或执行初始化（GET方式）
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // 检查是否包含初始化参数
+    const { searchParams } = new URL(request.url)
+    const shouldInitialize = searchParams.has('secret')
+
+    if (shouldInitialize) {
+      // 执行初始化流程
+      // 安全检查1：验证密钥
+      if (!(await validateSecretKey(request))) {
+        return NextResponse.json(
+          { error: '未授权的初始化请求：缺少有效密钥' },
+          { status: 401 }
+        )
+      }
+
+      // 安全检查2：幂等性检查
+      if (await isDatabaseInitialized()) {
+        return NextResponse.json({
+          message: '数据库已经初始化，跳过重复执行',
+          status: 'already_initialized'
+        })
+      }
+
+      // 安全检查3：时间窗口限制
+      if (!isValidTimeWindow()) {
+        return NextResponse.json(
+          { error: '初始化请求已超时，请在部署后1小时内执行' },
+          { status: 403 }
+        )
+      }
+
+      // 执行初始化逻辑
+      return await performInitialization()
+    } else {
+      // 仅返回数据库状态
+      const userCount = await prisma.user.count()
+      const customerCount = await prisma.customer.count()
+      const followUpCount = await prisma.followUpRecord.count()
+      const planCount = await prisma.nextStepPlan.count()
+
+      return NextResponse.json({
+        status: 'success',
+        data: {
+          users: userCount,
+          customers: customerCount,
+          followUpRecords: followUpCount,
+          nextStepPlans: planCount,
+          isEmpty: userCount === 0 && customerCount === 0,
+          message: userCount === 0 ? '数据库为空，需要初始化' : '数据库已有数据'
+        }
+      })
+    }
+  } catch (error) {
+    console.error('GET请求处理失败:', error)
+    return NextResponse.json(
+      { error: '请求处理失败' },
       { status: 500 }
     )
   }

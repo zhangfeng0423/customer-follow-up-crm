@@ -8,6 +8,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma, handleDatabaseError } from '@/lib/prisma'
+import { UserRole } from '../../generated/prisma'
+
+/**
+ * 获取或创建默认用户
+ * 确保客户创建时有有效的用户关联
+ */
+async function getOrCreateDefaultUser(): Promise<string> {
+  try {
+    // 首先尝试查找默认用户
+    let user = await prisma.user.findFirst({
+      where: { email: 'wanglei@company.com' }
+    })
+
+    // 如果用户不存在，创建默认用户
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          name: '王磊',
+          email: 'wanglei@company.com',
+          role: UserRole.SALES,
+        }
+      })
+      console.log('✅ 创建默认用户:', user.name)
+    }
+
+    return user.id
+  } catch (error) {
+    console.error('获取或创建默认用户失败:', error)
+    throw new Error('无法获取有效的用户ID')
+  }
+}
 
 /**
  * 创建客户的请求体验证Schema
@@ -122,9 +153,8 @@ export async function POST(request: NextRequest) {
     // 验证请求数据
     const validatedData = createCustomerSchema.parse(body)
 
-    // TODO: 从认证系统获取真实用户ID
-    // 目前使用固定的用户ID用于演示
-    const currentUserId = 'demo-user-id'
+    // 获取或创建默认用户ID
+    const currentUserId = await getOrCreateDefaultUser()
 
     // 检查邮箱是否已存在（如果提供了邮箱）
     if (validatedData.email) {
