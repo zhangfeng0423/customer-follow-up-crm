@@ -66,41 +66,58 @@ interface Customer {
  * 返回相对今天的描述
  */
 function formatFollowUpDate(dateString: string): { text: string; color: string } {
-  const date = new Date(dateString)
-  const today = startOfDay(new Date())
-  const followUpDate = startOfDay(date)
-  const daysDiff = differenceInDays(followUpDate, today)
+  try {
+    // 确保正确解析时间字符串，处理各种时间格式
+    const date = new Date(dateString)
 
-  if (isToday(date)) {
-    return { text: '今天', color: 'text-green-600 dark:text-green-400' }
-  }
-
-  if (isYesterday(date)) {
-    return { text: '昨天', color: 'text-orange-600 dark:text-orange-400' }
-  }
-
-  if (isTomorrow(date)) {
-    return { text: '明天', color: 'text-blue-600 dark:text-blue-400' }
-  }
-
-  if (daysDiff > 0) {
-    return {
-      text: `${daysDiff}天后`,
-      color: 'text-blue-600 dark:text-blue-400'
+    // 检查日期是否有效
+    if (isNaN(date.getTime())) {
+      console.warn('无效的日期字符串:', dateString)
+      return { text: '时间未知', color: 'text-muted-foreground' }
     }
-  }
 
-  if (daysDiff < 0) {
-    const absDays = Math.abs(daysDiff)
-    return {
-      text: `${absDays}天前`,
-      color: 'text-red-600 dark:text-red-400'
+    const now = new Date()
+    const today = startOfDay(now)
+    const followUpDate = startOfDay(date)
+    const daysDiff = differenceInDays(followUpDate, today)
+
+    // 调试日志
+    console.log('时间调试 - 输入:', dateString, '解析后:', date.toISOString(), '天数差:', daysDiff)
+
+    if (isToday(date)) {
+      return { text: '今天', color: 'text-green-600 dark:text-green-400' }
     }
-  }
 
-  return {
-    text: format(date, 'MM月dd日', { locale: zhCN }),
-    color: 'text-muted-foreground'
+    if (isYesterday(date)) {
+      return { text: '昨天', color: 'text-orange-600 dark:text-orange-400' }
+    }
+
+    if (isTomorrow(date)) {
+      return { text: '明天', color: 'text-blue-600 dark:text-blue-400' }
+    }
+
+    if (daysDiff > 0) {
+      return {
+        text: `${daysDiff}天后`,
+        color: 'text-blue-600 dark:text-blue-400'
+      }
+    }
+
+    if (daysDiff < 0) {
+      const absDays = Math.abs(daysDiff)
+      return {
+        text: `${absDays}天前`,
+        color: 'text-red-600 dark:text-red-400'
+      }
+    }
+
+    return {
+      text: format(date, 'MM月dd日', { locale: zhCN }),
+      color: 'text-muted-foreground'
+    }
+  } catch (error) {
+    console.error('格式化日期时出错:', error, dateString)
+    return { text: '时间错误', color: 'text-red-500' }
   }
 }
 
@@ -297,7 +314,18 @@ export default async function CustomersPage() {
                             </p>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 sm:mt-2">
-                            {format(new Date(customer.latestFollowUpRecord.createdAt), 'HH:mm', { locale: zhCN })}
+                            {(() => {
+                              try {
+                                const date = new Date(customer.latestFollowUpRecord.createdAt)
+                                if (isNaN(date.getTime())) {
+                                  return '时间未知'
+                                }
+                                return format(date, 'HH:mm', { locale: zhCN })
+                              } catch (error) {
+                                console.error('格式化时间时出错:', error, customer.latestFollowUpRecord.createdAt)
+                                return '时间错误'
+                              }
+                            })()}
                           </div>
                         </div>
                       ) : (
