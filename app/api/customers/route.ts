@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma, handleDatabaseError } from '@/lib/prisma'
 import { UserRole } from '../../generated/prisma'
+import { revalidatePath } from 'next/cache'
 
 /**
  * 获取或创建默认用户
@@ -210,6 +211,11 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    // 【关键步骤】清除客户列表页面的缓存
+    revalidatePath('/customers')
+    // 也清除客户详情页面的缓存（以防有其他页面引用）
+    revalidatePath(`/customers/${customer.id}`)
 
     // 返回创建成功的客户数据
     return NextResponse.json(

@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { prisma, handleDatabaseError } from '@/lib/prisma'
 // import type { Attachment, NextStepPlan } from '@/app/generated/prisma'
 import { FollowUpRecordResponse, ApiResponse } from '@/lib/types/followup'
+import { revalidatePath } from 'next/cache'
 
 /**
  * 创建跟进记录的请求体验证Schema
@@ -295,6 +296,10 @@ export async function POST(
         createdAt: plan.createdAt.toISOString(),
       })),
     }
+
+    // 【关键步骤】清除相关页面的缓存
+    revalidatePath('/customers')
+    revalidatePath(`/customers/${customerId}`)
 
     return NextResponse.json({
       success: true,
