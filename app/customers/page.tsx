@@ -191,8 +191,15 @@ async function getCustomers(): Promise<Customer[]> {
  *
  * @returns {JSX.Element} 客户列表页面
  */
+export const revalidate = 0; // 禁用缓存，每次请求都重新生成
 export default async function CustomersPage() {
   const customers = await getCustomers()
+
+  // 添加缓存破坏头
+  const headers = new Headers()
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  headers.set('Pragma', 'no-cache')
+  headers.set('Expires', '0')
 
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8">
